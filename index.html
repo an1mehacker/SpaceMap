@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Sci-Fi Voronoi Map Generator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        :root {
+            --bg-color: #0a0a1a;
+            --panel-bg: #1a1a3a;
+            --container-bg: #101025;
+            --sector-line-color: #3a5a9a;
+            --node-line-color: #FFFFFF;
+            --star-glow: #f0f0f0;
+            --text-color: #e0e0ff;
+            --input-bg: #2a2a4a;
+            --button-bg: #4a4a7a;
+            --button-hover-bg: #5a5a9a;
+            --font-main: 'Orbitron', sans-serif;
+        }
+
+        html {
+            height: 100%; /* Ensure html takes full height */
+        }
+
+        body {
+            margin: 0; /* Remove default margin */
+            padding: 20px; /* Add some padding around the app */
+            width: 100%;
+            min-height: 100vh; /* Changed from height to allow content growth */
+            box-sizing: border-box; /* Include padding in width/height calculations */
+            overflow: hidden; /* Still prevent scrollbars on body */
+            background-color: var(--bg-color);
+            font-family: var(--font-main);
+            color: var(--text-color);
+            /* Center title and appContainer */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        h1 {
+             /* Removed absolute positioning */
+             font-size: 1.8em;
+             text-shadow: 0 0 8px var(--text-color);
+             opacity: 0.9;
+             text-align: center;
+             margin: 0 0 20px 0; /* Margin below title */
+             flex-shrink: 0; /* Prevent title from shrinking */
+        }
+
+
+        #appContainer {
+            display: flex;
+            /* NEW: Set specific size */
+            width: 75vw;
+            height: 75vh;
+            max-width: 1400px; /* Optional: constrain max size */
+            max-height: 900px;
+            flex-direction: row;
+            border: 1px solid var(--sector-line-color); /* Add border to main container */
+            box-shadow: 0 0 20px rgba(58, 90, 154, 0.4);
+             background-color: var(--panel-bg); /* Background for the whole app area */
+        }
+
+        #controlPanel {
+            width: 280px;
+            height: 100%; /* Fill height of appContainer */
+            /* Background is inherited or use panel-bg */
+            padding: 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-right: 2px solid var(--sector-line-color);
+            flex-shrink: 0; /* Prevent panel from shrinking */
+        }
+
+        #controlPanel h2 {
+            text-align: center; margin-top: 0; margin-bottom: 10px;
+            color: var(--text-color); font-size: 1.3em;
+            border-bottom: 1px solid var(--sector-line-color); padding-bottom: 10px;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-size: 0.9em; opacity: 0.8; }
+        .control-group input[type="number"],
+        .control-group input[type="range"] {
+            width: 100%; padding: 5px 8px; background-color: var(--input-bg);
+            border: 1px solid var(--sector-line-color); color: var(--text-color);
+            font-family: var(--font-main); border-radius: 3px; box-sizing: border-box;
+        }
+        .control-group .range-value { font-size: 0.8em; opacity: 0.7; text-align: right; margin-top: -3px; }
+
+        #generateButton {
+            padding: 10px 15px; background-color: var(--button-bg); color: var(--text-color);
+            border: 1px solid var(--sector-line-color); font-family: var(--font-main);
+            font-size: 1em; cursor: pointer; border-radius: 4px;
+            transition: background-color 0.2s ease; margin-top: 15px;
+        }
+        #generateButton:hover { background-color: var(--button-hover-bg); }
+        #generateButton:active { transform: translateY(1px); }
+
+        #mapContainer {
+            flex-grow: 1; /* Map takes remaining horizontal space */
+            height: 100%; /* Fill height of appContainer */
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--container-bg); /* Specific background for map area */
+            overflow: hidden; /* Hide anything drawn outside canvas bounds */
+        }
+
+        canvas {
+            display: block;
+            /* Canvas should be sized by JS to fit mapContainer */
+            max-width: 100%;
+            max-height: 100%;
+            background-color: transparent;
+            cursor: crosshair;
+        }
+
+
+        /* Responsive stacking */
+        @media (max-width: 900px) { /* Adjust breakpoint maybe */
+             #appContainer {
+                 width: 95vw; /* Use more width on smaller screens */
+                 height: 85vh;
+                 flex-direction: column;
+             }
+             #controlPanel {
+                 width: 100%; height: auto; max-height: 45%; /* Allow more panel height */
+                 border-right: none; border-bottom: 2px solid var(--sector-line-color);
+                 order: 1;
+             }
+             #mapContainer {
+                 order: 2; width: 100%;
+                 height: auto; /* Let it fill remaining space */
+                 flex-grow: 1; /* Ensure it fills space */
+             }
+              h1 { font-size: 1.5em; margin-bottom: 15px; }
+        }
+         @media (max-height: 600px) {
+            /* Further adjustments for short screens if needed */
+             h1 { font-size: 1.3em; margin-bottom: 10px; }
+         }
+
+    </style>
+</head>
+<body>
+    <h1>Galactic Sector Map</h1>
+
+    <div id="appContainer">
+        <div id="controlPanel">
+            <h2>Parameters</h2>
+
+            <div class="control-group">
+                <label for="numSectors">Number of Sectors:</label>
+                <input type="number" id="numSectors" min="5" max="100" value="40">
+            </div>
+
+            <div class="control-group">
+                <label for="minSystems">Min Systems / Sector:</label>
+                <input type="number" id="minSystems" min="1" max="10" value="3">
+            </div>
+
+            <div class="control-group">
+                <label for="maxSystems">Max Systems / Sector:</label>
+                <input type="number" id="maxSystems" min="1" max="15" value="8">
+            </div>
+
+            <div class="control-group">
+                <label for="starRadius">Base Star Radius:</label>
+                <input type="number" id="starRadius" min="1" max="10" step="0.5" value="4">
+            </div>
+
+             <div class="control-group">
+                <label for="minStarDist">Min Star/Edge Distance:</label>
+                <input type="number" id="minStarDist" min="5" max="100" value="30">
+            </div>
+
+             <div class="control-group">
+                <label for="sitePadding">Site Edge Padding:</label>
+                <input type="number" id="sitePadding" min="0" max="100" value="25">
+            </div>
+
+             <div class="control-group">
+                 <label for="siteJitter">Site Jitter Factor: <span id="siteJitterValue" class="range-value">0.8</span></label>
+                <input type="range" id="siteJitter" min="0" max="1.0" step="0.05" value="0.8">
+            </div>
+
+            <button id="generateButton">Generate Map</button>
+        </div>
+
+        <div id="mapContainer">
+            <canvas id="spaceMapCanvas"></canvas>
+        </div>
+    </div>
+
+
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+
+    <script>
+        const mapContainer = document.getElementById('mapContainer');
+        const canvas = document.getElementById('spaceMapCanvas');
+        const ctx = canvas ? canvas.getContext('2d') : null;
+        const generateButton = document.getElementById('generateButton');
+
+        // --- Parameters Object (will be read from UI) ---
+        let params = { /* Default values set in readParametersFromUI initially */ };
+
+        // --- Constants (Not UI controllable) ---
+        const STAR_ANIMATION_SPEED = 0.0015;
+        const STAR_ANIMATION_MAGNITUDE = 0.25;
+        const HOVER_RADIUS = 12;
+        const CLICK_RADIUS = 10;
+        const DEFAULT_FONT_SIZE = 8;
+        const HOVER_FONT_SIZE = 13;
+        const STAR_COLOR_OPTIONS = [ '#FFFFFF', '#FFD700', '#FF6B6B', '#87CEEB', '#90EE90', '#FFA500' ];
+        const MAX_PLACEMENT_ATTEMPTS = 60; // Keep internal
+
+        // --- State Variables ---
+        let bgColor, containerBg, sectorLineColor, nodeLineColorCSS, starGlow, textColor, fontMain;
+        let width, height; // Canvas dimensions
+        let sectorSites = [];
+        let sectors = [];
+        let allSystems = [];
+        let animationFrameId;
+        let mousePos = { x: -1, y: -1 };
+        let selectedStarId = null;
+
+        const STAR_NAMES_POOL = [ /* Pool */ "Sol", "Sirius", "Canopus", "Rigil Kentaurus", "Arcturus", "Vega", "Capella", "Rigel", "Procyon", "Achernar", "Betelgeuse", "Hadar", "Altair", "Acrux", "Aldebaran", "Spica", "Antares", "Pollux", "Fomalhaut", "Deneb", "Mimosa", "Regulus", "Adhara", "Shaula", "Gacrux", "Bellatrix", "Elnath", "Miaplacidus", "Alnilam", "Alnair", "Alnitak", "Alioth", "Dubhe", "Mirfak", "Wezen", "Sargas", "Kaus Australis", "Avior", "Alkaid", "Menkalinan", "Atria", "Alhena", "Peacock", "Polaris", "Castor", "Nunki", "Scheat", "Alpheratz", "Mirach", "Algol", "Proxima Centauri", "Barnard's Star", "Wolf 359", "Lalande 21185", "Luyten 726-8", "Ross 154", "Ross 248", "Epsilon Eridani", "Tau Ceti", "Gliese 581", "Kepler-186", "TRAPPIST-1", "Cygnus X-1", "Sagittarius A*", "Andromeda", "Triangulum", "Orion", "Pleiades", "Hyades", "Ursa Major", "Draco", "Lyra", "Aquila", "Pegasus", "Xylos", "Zephyr", "K'tharr", "Rylos", "Omicron", "Vantor", "Gydan", "Phaedra" ];
+        let availableStarNames = [...STAR_NAMES_POOL];
+
+        // --- Helper Functions (Unchanged) ---
+        function getCssVariable(varName) { if (!document.body) return null; return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
+        function loadColors() { bgColor = getCssVariable('--bg-color') || '#0a0a1a'; containerBg = getCssVariable('--container-bg') || '#101025'; sectorLineColor = getCssVariable('--sector-line-color') || '#3a5a9a'; nodeLineColorCSS = getCssVariable('--node-line-color') || '#FFFFFF'; starGlow = getCssVariable('--star-glow') || '#f0f0f0'; textColor = getCssVariable('--text-color') || '#e0e0ff'; fontMain = getCssVariable('--font-main') || 'sans-serif'; }
+        function getRandomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+        function getRandomName() { if (availableStarNames.length === 0) { availableStarNames = [...STAR_NAMES_POOL]; availableStarNames = availableStarNames.map(name => name + "_" + Date.now()%1000); } const index = Math.floor(Math.random() * availableStarNames.length); const name = availableStarNames[index]; availableStarNames.splice(index, 1); return name; }
+        function isPointInPolygon(point, polygon) { if (!polygon || polygon.length < 3) return false; const [px, py] = point; let isInside = false; let j = polygon.length - 1; for (let i = 0; i < polygon.length; j = i++) { if (!polygon[i] || !polygon[j] || isNaN(polygon[i][0]) || isNaN(polygon[i][1]) || isNaN(polygon[j][0]) || isNaN(polygon[j][1])) continue; const [vix, viy] = polygon[i]; const [vjx, vjy] = polygon[j]; const intersect = ((viy > py) !== (vjy > py)) && (px < (vjx - vix) * (py - viy) / (vjy - viy) + vix); if (intersect) isInside = !isInside; } return isInside; }
+        function distanceSq(p1, p2) { const dx = p1[0] - p2[0]; const dy = p1[1] - p2[1]; return dx * dx + dy * dy; }
+        function distance(p1, p2) { return Math.sqrt(distanceSq(p1,p2)); }
+        function pointToSegmentDistanceSq(p, a, b) { const l2 = distanceSq(a, b); if (l2 === 0) return distanceSq(p, a); let t = ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / l2; t = Math.max(0, Math.min(1, t)); const projection = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]; return distanceSq(p, projection); }
+        function distanceToPolygonEdgeSq(point, polygon) { let minDistanceSq = Infinity; if (!polygon || polygon.length < 2) return minDistanceSq; let j = polygon.length - 1; for (let i = 0; i < polygon.length; j = i++) { if (!polygon[i] || !polygon[j] || isNaN(polygon[i][0]) || isNaN(polygon[i][1]) || isNaN(polygon[j][0]) || isNaN(polygon[j][1])) continue; minDistanceSq = Math.min(minDistanceSq, pointToSegmentDistanceSq(point, polygon[i], polygon[j])); } return minDistanceSq; }
+        function getPolygonArea(polygon) { if (!polygon || polygon.length < 3) return 0; let area = 0; let j = polygon.length - 1; for (let i = 0; i < polygon.length; j = i++) { if (!polygon[i] || !polygon[j] || isNaN(polygon[i][0]) || isNaN(polygon[i][1]) || isNaN(polygon[j][0]) || isNaN(polygon[j][1])) continue; const [xi, yi] = polygon[i]; const [xj, yj] = polygon[j]; area += (xi * yj) - (xj * yi); } return Math.abs(area / 2.0); }
+        function getPolygonCentroid(polygon) { if (!polygon || polygon.length === 0) return [0, 0]; let centroidX = 0, centroidY = 0, signedArea = 0; let j = polygon.length - 1; for (let i = 0; i < polygon.length; j = i++) { if (!polygon[i] || !polygon[j]) continue; const [xi, yi] = polygon[i]; const [xj, yj] = polygon[j]; if (isNaN(xi) || isNaN(yi) || isNaN(xj) || isNaN(yj)) continue; const areaSegment = (xi * yj) - (xj * yi); signedArea += areaSegment; centroidX += (xi + xj) * areaSegment; centroidY += (yi + yj) * areaSegment; } if (Math.abs(signedArea) < 1e-9) { let sumX = 0, sumY = 0, count = 0; for (const p of polygon) { if (p && !isNaN(p[0]) && !isNaN(p[1])) { sumX += p[0]; sumY += p[1]; count++; } } return count > 0 ? [sumX / count, sumY / count] : [0, 0]; } signedArea *= 0.5; centroidX /= (6.0 * signedArea); centroidY /= (6.0 * signedArea); return [centroidX, centroidY]; }
+        function generatePointsViaRejection(polygon, site, numPoints, minDistance) { const acceptedPoints = []; if (!polygon || numPoints <= 0) return acceptedPoints; const minDistanceSq = minDistance * minDistance; const fallbackPoint = site; const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }; polygon.forEach(p => { if(p && !isNaN(p[0]) && !isNaN(p[1])) { bounds.minX = Math.min(bounds.minX, p[0]); bounds.minY = Math.min(bounds.minY, p[1]); bounds.maxX = Math.max(bounds.maxX, p[0]); bounds.maxY = Math.max(bounds.maxY, p[1]); } }); for (let i = 0; i < numPoints; i++) { let pointPlaced = false; for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt++) { const candidate = [ Math.random() * (bounds.maxX - bounds.minX) + bounds.minX, Math.random() * (bounds.maxY - bounds.minY) + bounds.minY ]; if (isPointInPolygon(candidate, polygon)) { if (distanceToPolygonEdgeSq(candidate, polygon) < minDistanceSq) { continue; } let tooCloseToOther = false; for (const accepted of acceptedPoints) { if (distanceSq(candidate, accepted) < minDistanceSq) { tooCloseToOther = true; break; } } if (!tooCloseToOther) { acceptedPoints.push(candidate); pointPlaced = true; break; } } } if (!pointPlaced) { console.warn(`Failed to place point ${i+1} satisfying constraints after ${MAX_PLACEMENT_ATTEMPTS} attempts. Placing near site.`); let fb = [fallbackPoint[0] + (Math.random()-0.5)*10, fallbackPoint[1] + (Math.random()-0.5)*10]; if (!isPointInPolygon(fb, polygon)) { const centroid = getPolygonCentroid(polygon); if (isPointInPolygon(centroid, polygon)) fb = centroid; } acceptedPoints.push(fb); } } return acceptedPoints; }
+
+        // --- Read Parameters from UI ---
+        function readParametersFromUI() {
+            params.NUM_SECTORS = parseInt(document.getElementById('numSectors').value) || 40;
+            params.MIN_SYSTEMS_PER_SECTOR = parseInt(document.getElementById('minSystems').value) || 3;
+            params.MAX_SYSTEMS_PER_SECTOR = parseInt(document.getElementById('maxSystems').value) || 8;
+            params.STAR_BASE_RADIUS = parseFloat(document.getElementById('starRadius').value) || 4;
+            params.MIN_STAR_DISTANCE = parseInt(document.getElementById('minStarDist').value) || 30;
+            params.VORONOI_SITE_PADDING = parseInt(document.getElementById('sitePadding').value) || 25;
+            params.VORONOI_SITE_JITTER_FACTOR = parseFloat(document.getElementById('siteJitter').value) || 0.8;
+             params.MAX_PLACEMENT_ATTEMPTS = MAX_PLACEMENT_ATTEMPTS; // Ensure internal constant is used
+
+            // Clamp values
+             params.MIN_SYSTEMS_PER_SECTOR = Math.max(1, params.MIN_SYSTEMS_PER_SECTOR);
+             params.MAX_SYSTEMS_PER_SECTOR = Math.max(params.MIN_SYSTEMS_PER_SECTOR, params.MAX_SYSTEMS_PER_SECTOR);
+             params.NUM_SECTORS = Math.max(3, params.NUM_SECTORS);
+             params.STAR_BASE_RADIUS = Math.max(1, params.STAR_BASE_RADIUS);
+             params.MIN_STAR_DISTANCE = Math.max(5, params.MIN_STAR_DISTANCE);
+             params.VORONOI_SITE_PADDING = Math.max(0, params.VORONOI_SITE_PADDING);
+             params.VORONOI_SITE_JITTER_FACTOR = Math.max(0, Math.min(1.5, params.VORONOI_SITE_JITTER_FACTOR));
+
+            // console.log("Parameters updated:", params);
+        }
+         function updateRangeValue(inputId, outputId) { const input = document.getElementById(inputId); const output = document.getElementById(outputId); if (input && output) { output.textContent = parseFloat(input.value).toFixed(2); input.oninput = () => { output.textContent = parseFloat(input.value).toFixed(2); } } }
+
+
+        // --- Core Logic ---
+        function generateData() { /* ... unchanged ... */
+            if (!width || !height || width <= 0 || height <= 0) { return false; }
+            sectorSites = []; sectors = []; allSystems = []; availableStarNames = [...STAR_NAMES_POOL]; selectedStarId = null;
+            try {
+                const gridCols = Math.ceil(Math.sqrt(params.NUM_SECTORS * (width / height))); const gridRows = Math.ceil(params.NUM_SECTORS / gridCols); const cellWidth = width / gridCols; const cellHeight = height / gridRows;
+                for (let r = 0; r < gridRows; r++) { for (let c = 0; c < gridCols; c++) { if (sectorSites.length >= params.NUM_SECTORS) break; const jX = (Math.random() - 0.5) * cellWidth * params.VORONOI_SITE_JITTER_FACTOR; const jY = (Math.random() - 0.5) * cellHeight * params.VORONOI_SITE_JITTER_FACTOR; const sX = c * cellWidth + cellWidth / 2 + jX; const sY = r * cellHeight + cellHeight / 2 + jY; sectorSites.push([ Math.max(params.VORONOI_SITE_PADDING, Math.min(width - params.VORONOI_SITE_PADDING, sX)), Math.max(params.VORONOI_SITE_PADDING, Math.min(height - params.VORONOI_SITE_PADDING, sY)) ]); } }
+                sectorSites = sectorSites.slice(0, params.NUM_SECTORS);
+                if (typeof d3 === 'undefined' || typeof d3.voronoi !== 'function') { console.error("D3 error"); return false; }
+                const voronoi = d3.voronoi().extent([[0, 0], [width, height]]); const polygons = voronoi(sectorSites).polygons();
+                let minArea = Infinity, maxArea = 0; const sectorDataTemp = [];
+                polygons.forEach((poly, index) => { const site = sectorSites[index]; if (!poly || poly.length < 3 || !poly.every(p => p && !isNaN(p[0]) && !isNaN(p[1]))) { sectorDataTemp.push({ site: site, polygon: null, area: 0 }); return; } const area = getPolygonArea(poly); sectorDataTemp.push({ site: site, polygon: poly, area: area }); if (area > 0) { minArea = Math.min(minArea, area); maxArea = Math.max(maxArea, area); } });
+                const areaRange = (maxArea > minArea) ? (maxArea - minArea) : 1;
+                sectorDataTemp.forEach((tempData, index) => {
+                     if (!tempData.polygon) { sectors.push({ ...tempData, systems: [], normalizedArea: 0 }); return; }
+                    const normalizedArea = (tempData.area - minArea) / areaRange; const targetSystems = params.MIN_SYSTEMS_PER_SECTOR + Math.round(normalizedArea * (params.MAX_SYSTEMS_PER_SECTOR - params.MIN_SYSTEMS_PER_SECTOR)); let numSystems = targetSystems + getRandomInt(-1, 1); numSystems = Math.max(params.MIN_SYSTEMS_PER_SECTOR, Math.min(params.MAX_SYSTEMS_PER_SECTOR, numSystems));
+                    const systemPositions = generatePointsViaRejection(tempData.polygon, tempData.site, numSystems, params.MIN_STAR_DISTANCE);
+                    const systemsInSector = [];
+                    systemPositions.forEach((pos, i) => { if (!pos || isNaN(pos[0]) || isNaN(pos[1])) { return; } const system = { name: getRandomName(), x: pos[0], y: pos[1], sectorIndex: index, id: `sys_${index}_${i}`, color: STAR_COLOR_OPTIONS[Math.floor(Math.random() * STAR_COLOR_OPTIONS.length)], }; systemsInSector.push(system); allSystems.push(system); });
+                     sectors.push({ ...tempData, normalizedArea: normalizedArea, systems: systemsInSector });
+                });
+                console.log(`Generated ${sectors.filter(s => s.polygon).length} valid sectors (${params.NUM_SECTORS} requested) with ${allSystems.length} total systems.`);
+                return true;
+            } catch (error) { console.error("Error during data generation:", error); sectors = []; allSystems = []; return false; }
+         }
+        function drawMap(timestamp) { /* ... unchanged ... */
+             if (!ctx) return; ctx.clearRect(0, 0, width, height);
+             ctx.strokeStyle = sectorLineColor; ctx.lineWidth = 1.5; sectors.forEach(sector => { if (!sector.polygon) return; ctx.beginPath(); const start = sector.polygon[0]; if (!start) return; ctx.moveTo(start[0], start[1]); for (let i = 1; i < sector.polygon.length; i++) { const point = sector.polygon[i]; if (!point) continue; ctx.lineTo(point[0], point[1]); } ctx.closePath(); ctx.stroke(); });
+             ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 0.9; ctx.setLineDash([1, 3]);
+             sectors.forEach(sector => { const systems = sector.systems; if (systems.length < 2) return; const connectionsToDraw = []; const connectedSet = new Set(); const candidateEdges = []; const startSys = systems[0]; connectedSet.add(startSys.id); for (let i = 1; i < systems.length; i++) { const targetSys = systems[i]; candidateEdges.push({ fromSys: startSys, toSys: targetSys, distSq: distanceSq([startSys.x, startSys.y], [targetSys.x, targetSys.y]) }); } candidateEdges.sort((a, b) => a.distSq - b.distSq); while (connectedSet.size < systems.length && candidateEdges.length > 0) { let bestEdge = null; let bestEdgeIndex = -1; for(let i = 0; i < candidateEdges.length; i++) { const edge = candidateEdges[i]; const fromConnected = connectedSet.has(edge.fromSys.id); const toConnected = connectedSet.has(edge.toSys.id); if (fromConnected && !toConnected) { bestEdge = edge; bestEdgeIndex = i; break; } else if (!fromConnected && toConnected) { bestEdge = { fromSys: edge.toSys, toSys: edge.fromSys, distSq: edge.distSq }; bestEdgeIndex = i; break; } } if (bestEdge) { connectionsToDraw.push([bestEdge.fromSys, bestEdge.toSys]); const newlyAddedSys = bestEdge.toSys; connectedSet.add(newlyAddedSys.id); candidateEdges.splice(bestEdgeIndex, 1); for (let i = 0; i < systems.length; i++) { const potentialNeighbor = systems[i]; if (!connectedSet.has(potentialNeighbor.id)) { candidateEdges.push({ fromSys: newlyAddedSys, toSys: potentialNeighbor, distSq: distanceSq([newlyAddedSys.x, newlyAddedSys.y], [potentialNeighbor.x, potentialNeighbor.y]) }); } } candidateEdges.sort((a, b) => a.distSq - b.distSq); } else { console.warn("MST stalled in sector", systems[0]?.sectorIndex); break; } } connectionsToDraw.forEach(conn => { ctx.beginPath(); ctx.moveTo(conn[0].x, conn[0].y); ctx.lineTo(conn[1].x, conn[1].y); ctx.stroke(); }); });
+             ctx.setLineDash([]);
+             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+             allSystems.forEach(system => { if (isNaN(system.x) || isNaN(system.y)) return; const currentBaseRadius = params.STAR_BASE_RADIUS; const pulse = Math.sin(timestamp * STAR_ANIMATION_SPEED + system.x * 0.01) * STAR_ANIMATION_MAGNITUDE + (1 - STAR_ANIMATION_MAGNITUDE / 2); const currentRadius = currentBaseRadius * pulse; if (system.id === selectedStarId) { ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 2; ctx.beginPath(); const selectionRadius = currentRadius * 2.2 + Math.sin(timestamp * 0.006) * 3 + 2; ctx.arc(system.x, system.y, selectionRadius, 0, Math.PI * 2); ctx.stroke(); } ctx.fillStyle = starGlow; ctx.beginPath(); ctx.arc(system.x, system.y, currentRadius * 1.8, 0, Math.PI * 2); ctx.globalAlpha = 0.5 * pulse; ctx.fill(); ctx.globalAlpha = 1.0; ctx.fillStyle = system.color; ctx.beginPath(); ctx.arc(system.x, system.y, currentRadius, 0, Math.PI * 2); ctx.fill(); const distMouseSq = distanceSq([mousePos.x, mousePos.y], [system.x, system.y]); const isHovered = distMouseSq < (HOVER_RADIUS * HOVER_RADIUS); const fontSize = isHovered ? HOVER_FONT_SIZE : DEFAULT_FONT_SIZE; ctx.font = `${isHovered ? 'bold' : ''} ${fontSize}px ${fontMain}`; ctx.fillStyle = textColor; const labelYOffset = currentRadius + fontSize * 0.5 + 5; ctx.fillText(system.name, system.x, system.y + labelYOffset); });
+             ctx.textBaseline = 'alphabetic';
+         }
+
+        // --- Event Handlers ---
+        function handleMouseMove(event) { const rect = canvas.getBoundingClientRect(); mousePos.x = event.clientX - rect.left; mousePos.y = event.clientY - rect.top; }
+        function handleClick(event) { const rect = canvas.getBoundingClientRect(); const clickX = event.clientX - rect.left; const clickY = event.clientY - rect.top; const clickRadiusSq = CLICK_RADIUS * CLICK_RADIUS; let clickedStar = null; let minDistSq = clickRadiusSq; for (const system of allSystems) { const dSq = distanceSq([clickX, clickY], [system.x, system.y]); if (dSq < minDistSq) { minDistSq = dSq; clickedStar = system; } } if (clickedStar) { selectedStarId = clickedStar.id; /*console.log("Selected Star:", clickedStar.name, selectedStarId);*/ } else { selectedStarId = null; /*console.log("Deselected"); */ } }
+        function handleKeyDown(event) { if (event.key === 'Escape') { if (selectedStarId !== null) { selectedStarId = null; /*console.log("Deselected via ESC");*/ } } }
+
+        // --- Animation, Resize, Regeneration ---
+        function animate(timestamp) { drawMap(timestamp); animationFrameId = requestAnimationFrame(animate); }
+        function regenerateMap() { console.log("Regenerating map..."); if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } readParametersFromUI(); const dataGenerated = generateData(); if (dataGenerated && sectors.length > 0) { animate(performance.now()); } else { console.error("Map generation failed..."); if(ctx && width > 0 && height > 0){ ctx.clearRect(0,0,width, height); ctx.fillStyle = 'red'; ctx.font = `bold 16px ${fontMain || 'sans-serif'}`; ctx.textAlign = 'center'; ctx.fillText("Error generating map data.", width / 2, height / 2); } } }
+        function resizeCanvas() { console.log("Resizing canvas container..."); if (!mapContainer || !canvas || !ctx) { console.error("Container or canvas elements not available during resize."); return; } width = mapContainer.clientWidth; height = mapContainer.clientHeight; canvas.width = width; canvas.height = height; loadColors(); regenerateMap(); }
+        function init() { if (!mapContainer || !canvas || !ctx || typeof d3 === 'undefined') { console.error("Initialization prerequisites failed."); return; } readParametersFromUI(); updateRangeValue('siteJitter', 'siteJitterValue'); canvas.addEventListener('mousemove', handleMouseMove); canvas.addEventListener('click', handleClick); window.addEventListener('keydown', handleKeyDown); window.addEventListener('resize', resizeCanvas); generateButton.addEventListener('click', regenerateMap); resizeCanvas(); }
+        if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+
+    </script>
+</body>
+</html>
