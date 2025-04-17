@@ -3,6 +3,6 @@
 
 Created in ~2 hours using Gemini AI. 
 
-Try it: https://an1mehacker.github.io/SpaceMap/
+Try it: https://finesseandstyle.github.io/SpaceMap/
 
 ![img](map.png)
